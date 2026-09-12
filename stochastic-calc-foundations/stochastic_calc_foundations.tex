@@ -6,6 +6,8 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
+\usepackage{dsfont}
+
 
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
 
@@ -36,22 +38,23 @@
 \title{\textbf{Foundations of Stochastic Calculus for Option Pricing}\\
 \large Itô's Lemma, the Girsanov Change of Measure, and the Feynman--Kac Representation}
 \author{Mohit Kumar Jassi}
-\date{\today}
+\date{}
 
 \begin{document}
 \maketitle
-
 \begin{abstract}
+
 \noindent These notes give a from-first-principles derivation of the three pillars connecting the
 probabilistic and PDE views of derivative pricing: Itô's Lemma, the Girsanov change-of-measure
 theorem underlying risk-neutral pricing, and the Feynman--Kac representation linking conditional
 expectations to parabolic PDEs. Every step is justified rather than asserted; where a naive
 ordinary-calculus argument fails, the failure is made explicit before the correct stochastic
-argument is given. Each theoretical result is paired with a numerical validation in the
-accompanying \texttt{validate.py} script.
+argument is given.
 \end{abstract}
 
 \tableofcontents
+
+\newpage
 
 % =====================================================================
 \section{Itô Processes and Itô's Lemma}
@@ -243,7 +246,7 @@ respect to $\P$ (written $\Q \ll \P$) if, for every $A \in \F$, $\P(A) = 0 \impl
 measure can assign positive probability to an event the other calls impossible. If $\Q \ll \P$, the
 Radon--Nikodym theorem guarantees a random variable $Z = \dd\Q/\dd\P$ such that
 \[
-\Q(A) = \int_A Z\,\dd\P = \E^\P[Z\mathbb{1}_A] \qquad \forall A \in \F.
+\Q(A) = \int_A Z\,\dd\P = \E^\P[Z\mathds{1}_A] \qquad \forall A \in \F.
 \]
 \end{definition}
 
@@ -264,8 +267,8 @@ Any valid RND $Z$ satisfies $Z \ge 0$ a.s.\ and $\E^\P[Z] = 1$.
 
 \begin{proof}
 Since $\Q$ is a probability measure, $\Q(A) \ge 0$ for every $A \in \F$. If $Z<0$ on some set
-$B$ with $\P(B)>0$, then $\Q(B) = \E^\P[Z\mathbb{1}_B] < 0$, a contradiction; hence $Z \ge 0$ a.s.
-Taking $A = \Omega$: $1 = \Q(\Omega) = \E^\P[Z\mathbb{1}_\Omega] = \E^\P[Z]$.
+$B$ with $\P(B)>0$, then $\Q(B) = \E^\P[Z\mathds{1}_B] < 0$, a contradiction; hence $Z \ge 0$ a.s.
+Taking $A = \Omega$: $1 = \Q(\Omega) = \E^\P[Z\mathds{1}_\Omega] = \E^\P[Z]$.
 \end{proof}
 
 \begin{remark}[Why $Z$ must be \emph{strictly} positive]
