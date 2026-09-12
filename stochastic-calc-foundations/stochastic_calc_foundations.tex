@@ -1,0 +1,530 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem*{exercise}{Exercise}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\Var}{\mathrm{Var}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Stochastic Calculus Foundations}
+\lhead{Itô, Girsanov, Feynman--Kac}
+\cfoot{\thepage}
+
+\title{\textbf{Foundations of Stochastic Calculus for Option Pricing}\\
+\large Itô's Lemma, the Girsanov Change of Measure, and the Feynman--Kac Representation}
+\author{Mohit Kumar Jassi}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent These notes give a from-first-principles derivation of the three pillars connecting the
+probabilistic and PDE views of derivative pricing: Itô's Lemma, the Girsanov change-of-measure
+theorem underlying risk-neutral pricing, and the Feynman--Kac representation linking conditional
+expectations to parabolic PDEs. Every step is justified rather than asserted; where a naive
+ordinary-calculus argument fails, the failure is made explicit before the correct stochastic
+argument is given. Each theoretical result is paired with a numerical validation in the
+accompanying \texttt{validate.py} script.
+\end{abstract}
+
+\tableofcontents
+
+% =====================================================================
+\section{Itô Processes and Itô's Lemma}
+% =====================================================================
+
+\subsection{Itô processes}
+
+\begin{definition}[Itô process]
+A process $(X_t)_{t\ge 0}$ generalises Brownian motion by allowing both a drift and a diffusion
+term. $X_t$ is an \emph{Itô process} if it can be written as
+\[
+X_t = X_0 + \int_0^t \mu_s \,\dd s + \int_0^t \sigma_s \,\dd W_s,
+\]
+or, in differential (SDE) notation,
+\[
+\dd X_t = \underbrace{\mu_t}_{\text{drift}}\,\dd t + \underbrace{\sigma_t}_{\text{diffusion}}\,\dd W_t,
+\qquad W_t \text{ a Wiener process.}
+\]
+\end{definition}
+
+\begin{remark}[Integrability conditions]
+Both $\mu_t$ and $\sigma_t$ are required to be $\F_t$-adapted and to satisfy suitable
+integrability conditions so that the two integrals above are well defined:
+\[
+\int_0^t |\mu_s|\,\dd s < \infty \quad \text{a.s.}, \qquad \int_0^t \sigma_s^2 \,\dd s < \infty \quad \text{a.s.}
+\]
+The drift integral $\int_0^t \mu_s\,\dd s$ is an ordinary (pathwise) Riemann integral and pushes the
+process in a \emph{predictable} direction. The stochastic integral $\int_0^t \sigma_s\,\dd W_s$
+injects randomness whose variance accumulates over time, since $\Var(\dd W_t) = \dd t$. We verify
+this accumulation explicitly:
+\[
+\Var\!\left[\int_0^t \sigma_s \,\dd W_s\right]
+= \E\!\left[\left(\int_0^t \sigma_s\,\dd W_s\right)^2\right] - \underbrace{\left(\E\!\left[\int_0^t \sigma_s\,\dd W_s\right]\right)^2}_{=0}
+= \int_0^t \E[\sigma_s^2]\,\dd s,
+\]
+using the Itô isometry $\E\!\left[\left(\int_0^t \sigma_s\,\dd W_s\right)^2\right] = \E\!\left[\int_0^t \sigma_s^2\,\dd s\right]$.
+For constant $\sigma_s \equiv \sigma$ this reduces to $\Var\!\left[\int_0^t \sigma\,\dd W_s\right] = \sigma^2 t$,
+consistent with $X_t \sim \N(0,t)$ for standard Brownian motion. When $\sigma_s$ varies with time or
+state, this variance must in general be recomputed at each instant — this state-dependence is
+precisely what Itô's Lemma below allows us to track exactly, rather than approximately.
+\end{remark}
+
+\subsection{Derivation of Itô's Lemma}
+
+We want to know how a smooth function $f(X_t,t)$ evolves when $X_t$ is an Itô process. Ordinary
+calculus would Taylor-expand and retain first-order terms only; we show explicitly why this fails
+here.
+
+\subsubsection*{Step 1: Multivariate Taylor expansion}
+
+For $f(x,t)$, expand around $(X_t,t)$ with small increments $\dd X_t$, $\dd t$, keeping second-order
+terms:
+\[
+f(X_t+\dd X_t,\ t+\dd t) = f(X_t,t) + f_t\,\dd t + f_x\,\dd X_t
++ \tfrac12\Big(f_{tt}(\dd t)^2 + 2f_{tx}\,\dd t\,\dd X_t + f_{xx}(\dd X_t)^2\Big) + \cdots
+\]
+Define $\dd f := f(X_t+\dd X_t,\,t+\dd t) - f(X_t,t)$, so
+\[
+\dd f = f_t\,\dd t + f_x\,\dd X_t + \tfrac12 f_{tt}(\dd t)^2 + f_{tx}\,\dd t\,\dd X_t
++ \tfrac12 f_{xx}(\dd X_t)^2 + \cdots
+\]
+
+\subsubsection*{Step 2: Expand $(\dd X_t)^2$ and the mixed term}
+
+Substituting $\dd X_t = \mu\,\dd t + \sigma\,\dd W_t$:
+\begin{align}
+\dd t \cdot \dd X_t &= \mu (\dd t)^2 + \sigma \,\dd W_t\,\dd t, \\
+(\dd X_t)^2 &= \mu^2(\dd t)^2 + 2\mu\sigma\,\dd t\,\dd W_t + \sigma^2(\dd W_t)^2.
+\end{align}
+
+\subsubsection*{Step 3: Order analysis (the Itô multiplication table)}
+
+Using the heuristic $\dd W_t \sim \sqrt{\dd t}$ — justified since $\Var(\dd W_t) = \dd t$, so the
+\emph{typical size} of $\dd W_t$ scales as $\sqrt{\dd t}$ — track the order in $\dd t$ of every term:
+\[
+(\dd t)^2 \to 0, \qquad (\dd t)^{3/2} = \dd t \cdot \dd W_t \to 0, \qquad (\dd W_t)^2 \to \dd t.
+\]
+The first two vanish faster than $\dd t$ itself and are discarded (this is the ordinary-calculus
+step). The last is the crux: $(\dd W_t)^2$ is the \emph{same order} as $\dd t$, so it cannot be
+discarded — it is this term, and only this term, that survives from every second-order piece above.
+Consequently:
+\[
+f_{tt}(\dd t)^2 \to 0, \qquad f_{tx}\,\dd t\,\dd X_t \to 0, \qquad
+f_{xx}(\dd X_t)^2 \to f_{xx}\,\sigma^2\,\dd t.
+\]
+
+\subsubsection*{Step 4: Collect terms}
+
+\[
+\dd f = f_t\,\dd t + f_x(\mu\,\dd t + \sigma\,\dd W_t) + \tfrac12 f_{xx}\sigma^2\,\dd t
+\]
+
+\begin{theorem}[Itô's Lemma]
+\label{thm:ito}
+Let $\dd X_t = \mu_t\,\dd t + \sigma_t\,\dd W_t$ and let $f(x,t)$ be twice continuously
+differentiable in $x$ and once in $t$. Then
+\[
+\boxed{\ \dd f = \left(f_t + \mu_t f_x + \tfrac12 \sigma_t^2 f_{xx}\right)\dd t + \sigma_t f_x\,\dd W_t\ }
+\]
+\end{theorem}
+
+\begin{remark}
+The term $\tfrac12\sigma_t^2 f_{xx}\,\dd t$ — the \emph{Itô correction} — is the entire difference
+from the chain rule of ordinary calculus. It exists because $(\dd W_t)^2 = \dd t$ rather than $0$,
+which is itself a consequence of the nowhere-differentiable, infinite-quadratic-variation sample
+paths of Brownian motion.
+\end{remark}
+
+\subsection{Worked exercise: the GBM log-transform}
+
+\begin{exercise}
+Let $f(S_t) = \ln S_t$, where $\dd S_t = \mu S_t\,\dd t + \sigma S_t\,\dd W_t$ (geometric Brownian
+motion). Find $\dd(\ln S_t)$.
+\end{exercise}
+
+\begin{proof}[Solution]
+Compute the partial derivatives of $f(x) = \ln x$:
+\[
+f_t = 0, \qquad f_x = \frac{1}{S_t}, \qquad f_{xx} = -\frac{1}{S_t^2}.
+\]
+Apply Theorem~\ref{thm:ito} with $\mu_t \to \mu S_t$, $\sigma_t \to \sigma S_t$:
+\[
+\dd(\ln S_t) = \left(0 + \mu S_t \cdot \frac{1}{S_t} + \tfrac12 \sigma^2 S_t^2 \cdot\left(-\frac{1}{S_t^2}\right)\right)\dd t
++ \sigma S_t \cdot \frac{1}{S_t}\,\dd W_t
+\]
+\[
+\boxed{\ \dd(\ln S_t) = \left(\mu - \tfrac12\sigma^2\right)\dd t + \sigma\,\dd W_t\ }
+\]
+Integrating from $0$ to $T$:
+\[
+\int_0^T \dd(\ln S_t) = \left(\mu - \tfrac{\sigma^2}{2}\right)\int_0^T \dd t + \int_0^T \sigma\,\dd W_t
+\ \Longrightarrow\
+\ln\!\left(\frac{S_T}{S_0}\right) = \left(\mu-\tfrac{\sigma^2}{2}\right)T + \sigma W_T,
+\]
+so that
+\[
+\boxed{\ S_T = S_0\exp\!\left[\left(\mu - \tfrac{\sigma^2}{2}\right)T + \sigma W_T\right]\ }
+\]
+\end{proof}
+
+\begin{remark}
+The $-\tfrac12\sigma^2$ correction is why $\E[\ln S_T] \ne \ln \E[S_T]$: the log-price and the price
+level carry \emph{different} drifts under the same dynamics — a fact with no ordinary-calculus
+analogue and a frequent source of interview errors.
+\end{remark}
+
+% =====================================================================
+\section{The Radon--Nikodym Derivative and Girsanov's Theorem}
+% =====================================================================
+
+\subsection{Motivation: risk-neutral drift}
+
+Under the real-world measure $\P$, a stock follows $\dd S_t = \mu S_t\,\dd t + \sigma S_t\,\dd W_t^\P$.
+For pricing we require a measure $\Q$ under which the drift is the risk-free rate $r$ rather than
+$\mu$. We construct $\Q$ by shifting the driving Brownian motion.
+
+\begin{definition}[Drift shift]
+For a process $\theta_t$ (the \emph{market price of risk}), define
+\[
+\dd W_t^\Q := \dd W_t^\P + \theta_t\,\dd t, \qquad\text{equivalently}\qquad
+W_t^\Q = W_t^\P + \int_0^t \theta_s\,\dd s.
+\]
+\end{definition}
+
+\begin{proposition}[Choice of $\theta_t$]
+The unique $\theta_t$ for which $S_t$ has drift $r$ under $\Q$ is $\theta_t = \dfrac{\mu-r}{\sigma}$
+(the Sharpe ratio).
+\end{proposition}
+
+\begin{proof}
+Substitute $\dd W_t^\P = \dd W_t^\Q - \theta_t\,\dd t$ into the $\P$-dynamics:
+\[
+\dd S_t = \mu S_t\,\dd t + \sigma S_t\big(\dd W_t^\Q - \theta_t\,\dd t\big)
+= (\mu - \sigma\theta_t)S_t\,\dd t + \sigma S_t\,\dd W_t^\Q.
+\]
+Comparing with the target $\dd S_t = rS_t\,\dd t + \sigma S_t\,\dd W_t^\Q$ requires
+$\mu - \sigma\theta_t = r$, i.e. $\theta_t = (\mu-r)/\sigma$.
+\end{proof}
+
+What remains is to show that $W_t^\Q$, so defined, is \emph{actually} a Brownian motion — under some
+genuine probability measure $\Q$. This is the content of Girsanov's theorem, and requires first
+understanding the Radon--Nikodym machinery that makes a change of measure precise.
+
+\subsection{The Radon--Nikodym derivative}
+
+\begin{definition}[Absolute continuity and RND]
+Let $\P,\Q$ be probability measures on $(\Omega,\F)$. $\Q$ is \emph{absolutely continuous} with
+respect to $\P$ (written $\Q \ll \P$) if, for every $A \in \F$, $\P(A) = 0 \implies \Q(A) = 0$: no
+measure can assign positive probability to an event the other calls impossible. If $\Q \ll \P$, the
+Radon--Nikodym theorem guarantees a random variable $Z = \dd\Q/\dd\P$ such that
+\[
+\Q(A) = \int_A Z\,\dd\P = \E^\P[Z\mathbb{1}_A] \qquad \forall A \in \F.
+\]
+\end{definition}
+
+\begin{remark}[Interpretation]
+$Z$ is a path-by-path reweighting function. Where $Z>1$, $\Q$ assigns more weight than $\P$; where
+$Z<1$, less. The key consequence, used throughout risk-neutral pricing, is
+\[
+\boxed{\ \E^\Q[X] = \E^\P[X\cdot Z]\ }
+\]
+— an expectation under an unfamiliar measure $\Q$ is computed entirely under the familiar measure
+$\P$, after reweighting by $Z$.
+\end{remark}
+
+\begin{proposition}[$Z$ is non-negative and has unit mean]
+\label{prop:Znonneg}
+Any valid RND $Z$ satisfies $Z \ge 0$ a.s.\ and $\E^\P[Z] = 1$.
+\end{proposition}
+
+\begin{proof}
+Since $\Q$ is a probability measure, $\Q(A) \ge 0$ for every $A \in \F$. If $Z<0$ on some set
+$B$ with $\P(B)>0$, then $\Q(B) = \E^\P[Z\mathbb{1}_B] < 0$, a contradiction; hence $Z \ge 0$ a.s.
+Taking $A = \Omega$: $1 = \Q(\Omega) = \E^\P[Z\mathbb{1}_\Omega] = \E^\P[Z]$.
+\end{proof}
+
+\begin{remark}[Why $Z$ must be \emph{strictly} positive]
+Non-negativity alone does not require $Z>0$ everywhere; that stronger requirement comes from
+\emph{equivalence} of measures ($\P \sim \Q$, i.e. $\Q \ll \P$ and $\P \ll \Q$), which Girsanov's
+construction needs so that the change of measure is invertible. If $Z_t = 0$ on some set, then
+$\dd\P/\dd\Q = 1/Z_t$ blows up there, meaning $\P$ assigns positive probability to an event $\Q$
+considers impossible — breaking the two-way translation between $\P$- and $\Q$-expectations that
+risk-neutral pricing relies on constantly. As shown below, the exponential form of $Z_t$ guarantees
+$Z_t>0$ automatically, since $e^x>0$ for all finite $x$.
+\end{remark}
+
+\subsection{Martingale property of the Radon--Nikodym process}
+
+Define the process $Z_t := \E^\P[Z_T \mid \F_t]$ for a fixed terminal $Z_T = \dd\Q/\dd\P$.
+
+\begin{proposition}
+\label{prop:Zmart}
+$(Z_t)_{t\ge0}$ is a $\P$-martingale with $Z_0=1$.
+\end{proposition}
+\begin{proof}
+By the tower property, for $s<t$,
+\[
+\E^\P[Z_t \mid \F_s] = \E^\P\big[\E^\P[Z_T\mid\F_t] \,\big|\, \F_s\big] = \E^\P[Z_T\mid\F_s] = Z_s.
+\]
+$Z_0 = \E^\P[Z_T] = 1$ by Proposition~\ref{prop:Znonneg}.
+\end{proof}
+
+\begin{remark}
+This is structural — it requires no extra assumption. By the Martingale Representation Theorem, any
+$\P$-martingale adapted to a Brownian filtration can be written as a pure stochastic integral
+against $\dd W_t^\P$ with \emph{zero drift}:
+\[
+\dd Z_t = \gamma_t\,\dd W_t^\P
+\]
+for some (as yet unknown) process $\gamma_t$.
+\end{remark}
+
+\subsection{Deriving $\gamma_t$: Lévy's characterization and the abstract Bayes rule}
+
+We now determine $\gamma_t$ — and hence $Z_t$ explicitly — by requiring that $W_t^\Q$, as defined
+above, genuinely be a $\Q$-Brownian motion.
+
+\begin{theorem}[Lévy's characterization of Brownian motion]
+A continuous process $(M_t)$ with $M_0=0$ is a Brownian motion under a measure $\Q$ if and only if
+it is a $\Q$-martingale and its quadratic variation is $\langle M \rangle_t = t$.
+\end{theorem}
+
+\begin{remark}
+Since $W_t^\Q = W_t^\P + \int_0^t\theta_s\,\dd s$ differs from $W_t^\P$ only by a finite-variation
+drift term, quadratic variation is unaffected: $\langle W^\Q\rangle_t = \langle W^\P \rangle_t = t$.
+The entire content of Girsanov's theorem therefore reduces to showing $W_t^\Q$ is a $\Q$-martingale.
+\end{remark}
+
+\begin{lemma}[Abstract Bayes rule]
+For equivalent measures with RND process $Z_t$,
+\[
+\E^\Q[X_t \mid \F_s] = \frac{\E^\P[Z_tX_t\mid\F_s]}{Z_s}.
+\]
+Consequently, $X_t$ is a $\Q$-martingale $\iff$ $Z_tX_t$ is a $\P$-martingale.
+\end{lemma}
+
+Applying this with $X_t = W_t^\Q$: \emph{$W_t^\Q$ is a $\Q$-martingale iff $Z_tW_t^\Q$ is a
+$\P$-martingale.} This converts an unfamiliar $\Q$-calculation into a $\P$-calculation we can carry
+out directly with Itô's Lemma.
+
+\begin{proposition}[Determining $\gamma_t$]
+\label{prop:gamma}
+$Z_tW_t^\Q$ is a $\P$-martingale if and only if $\gamma_t = -Z_t\theta_t$.
+\end{proposition}
+
+\begin{proof}
+Apply the Itô product rule to $Z_tW_t^\Q$, using $\dd W_t^\Q = \dd W_t^\P + \theta_t\,\dd t$ and
+$\dd Z_t = \gamma_t\,\dd W_t^\P$:
+\[
+\dd(Z_tW_t^\Q) = Z_t\,\dd W_t^\Q + W_t^\Q\,\dd Z_t + \dd\langle Z, W^\Q\rangle_t.
+\]
+Term by term:
+\begin{align*}
+Z_t\,\dd W_t^\Q &= Z_t\,\dd W_t^\P + Z_t\theta_t\,\dd t, \\
+W_t^\Q\,\dd Z_t &= W_t^\Q\gamma_t\,\dd W_t^\P, \\
+\dd\langle Z, W^\Q\rangle_t &= \gamma_t\,\dd t \quad\text{(the $\theta_t\,\dd t$ piece of $W^\Q$ is finite-variation and contributes 0 to covariation).}
+\end{align*}
+Summing and separating drift from diffusion:
+\[
+\dd(Z_tW_t^\Q) = \underbrace{(Z_t\theta_t+\gamma_t)}_{\text{drift}}\,\dd t
++ \underbrace{(Z_t + W_t^\Q\gamma_t)}_{\text{diffusion}}\,\dd W_t^\P.
+\]
+For a martingale the drift must vanish: $Z_t\theta_t + \gamma_t = 0 \Rightarrow \gamma_t = -Z_t\theta_t$.
+This is the \emph{unique} value of $\gamma_t$ consistent with $W_t^\Q$ being a $\Q$-Brownian motion.
+\end{proof}
+
+\subsection{Solving for $Z_t$ explicitly}
+
+We must now solve
+\[
+\dd Z_t = -Z_t\theta_t\,\dd W_t^\P, \qquad Z_0 = 1. \tag{$\ast$}
+\]
+
+\begin{remark}[Why the exponential ansatz, and why a drift term in the exponent]
+The SDE ($\ast$) is \emph{multiplicative} — the diffusion coefficient is $Z_t$ itself, exactly as in
+GBM. A naive division suggests $\dd(\ln Z_t) = -\theta_t\,\dd W_t^\P$, hence
+$\ln Z_t = -\int_0^t\theta_s\,\dd W_s^\P$ with \emph{no} drift term. This is provably wrong: applying
+Itô's Lemma to check it, $Z_t = \exp\!\left(-\int_0^t\theta_s\,\dd W_s^\P\right)$ would satisfy
+$\dd Z_t = Z_t\big(\tfrac12\theta_t^2\,\dd t - \theta_t\,\dd W_t^\P\big)$ — a spurious drift term
+generated purely by exponentiating. Since ($\ast$) demands \emph{zero} drift, the exponent must
+carry a compensating drift term from the outset, chosen to cancel exactly what Itô's correction
+introduces. Positivity of $Z_t$ (Proposition~\ref{prop:Znonneg}, strict form) further forces the
+exponential parametrisation, since $Z_t=e^{X_t}>0$ automatically for any process $X_t$.
+\end{remark}
+
+\begin{proposition}[Solution of the RND SDE]
+\[
+Z_t = \exp\!\left(-\int_0^t\theta_s\,\dd W_s^\P - \tfrac12\int_0^t\theta_s^2\,\dd s\right).
+\]
+\end{proposition}
+
+\begin{proof}
+Write $Z_t = e^{X_t}$ with $\dd X_t = a_t\,\dd t + b_t\,\dd W_t^\P$ (drift $a_t$, diffusion $b_t$
+both unknown). Applying Itô's Lemma with $f(x)=e^x$, so $f_x=f_{xx}=e^x=Z_t$:
+\[
+\dd Z_t = Z_t\,\dd X_t + \tfrac12 Z_t(\dd X_t)^2
+= Z_t\big(a_t\,\dd t + b_t\,\dd W_t^\P\big) + \tfrac12 Z_t b_t^2\,\dd t
+= Z_t\!\left(a_t+\tfrac12 b_t^2\right)\dd t + Z_tb_t\,\dd W_t^\P.
+\]
+Matching against ($\ast$), $\dd Z_t = -Z_t\theta_t\,\dd W_t^\P + 0\cdot\dd t$:
+\[
+\text{diffusion: } b_t = -\theta_t, \qquad
+\text{drift: } a_t + \tfrac12 b_t^2 = 0 \implies a_t = -\tfrac12\theta_t^2.
+\]
+Integrating, with $X_0=0$ (since $Z_0=e^{X_0}=1$):
+\[
+X_t = -\tfrac12\int_0^t\theta_s^2\,\dd s - \int_0^t\theta_s\,\dd W_s^\P,
+\]
+and $Z_t = e^{X_t}$ gives the claimed formula.
+\end{proof}
+
+\begin{theorem}[Girsanov's Theorem — summary]
+Let $\theta_t$ satisfy Novikov's condition
+$\E^\P\!\left[\exp\!\left(\tfrac12\int_0^T\theta_s^2\,\dd s\right)\right] < \infty$, and define
+$Z_t$ as above. Then $Z_t$ is a genuine $\P$-martingale, $\dd\Q/\dd\P|_{\F_t} = Z_t$ defines a valid
+probability measure $\Q \sim \P$, and
+\[
+W_t^\Q = W_t^\P + \int_0^t\theta_s\,\dd s
+\]
+is a $\Q$-Brownian motion.
+\end{theorem}
+
+\subsection{Verification: $\E^\P[Z_T]=1$}
+
+\begin{proposition}
+For constant $\theta_t \equiv \theta$, $\E^\P[Z_T] = 1$.
+\end{proposition}
+\begin{proof}
+$Z_T = \exp\!\left(-\theta W_T^\P - \tfrac12\theta^2T\right)$. Since $W_T^\P \sim \N(0,T)$,
+$-\theta W_T^\P \sim \N(0,\theta^2T)$. Using the Gaussian MGF $\E[e^X] = e^{v/2}$ for $X\sim\N(0,v)$:
+\[
+\E^\P[Z_T] = e^{-\theta^2T/2}\cdot\E^\P\big[e^{-\theta W_T^\P}\big] = e^{-\theta^2T/2}\cdot e^{\theta^2T/2} = 1. \qedhere
+\]
+\end{proof}
+
+\begin{remark}
+The two exponents cancel \emph{exactly} — this is not incidental. The $-\tfrac12\theta_s^2\,\dd s$
+term in $Z_t$ was forced by the zero-drift requirement in Proposition~\ref{prop:gamma}; this MGF
+computation is the same fact viewed differently: the correction exactly compensates the variance
+picked up by exponentiating a Gaussian, keeping the mean pinned at $1$. Verified numerically via
+Monte Carlo in \texttt{validate.py}.
+\end{remark}
+
+% =====================================================================
+\section{The Feynman--Kac Representation}
+% =====================================================================
+
+\subsection{Plain Feynman--Kac}
+
+\begin{theorem}[Feynman--Kac]
+\label{thm:fk}
+Let $\dd X_t = \mu(X_t,t)\,\dd t + \sigma(X_t,t)\,\dd W_t$ and define
+\[
+u(x,t) = \E\big[g(X_T) \mid X_t = x\big]
+\]
+for a payoff function $g$. Then $u$ solves the terminal-value PDE
+\[
+u_t + \mu(x,t)u_x + \tfrac12\sigma(x,t)^2u_{xx} = 0, \qquad u(x,T) = g(x).
+\]
+\end{theorem}
+
+\begin{proof}
+By construction, $u(X_t,t) = \E[g(X_T)\mid \F_t]$ is a conditional expectation of a fixed terminal
+quantity, hence a $\P$-martingale (same structural fact as Proposition~\ref{prop:Zmart}). Apply
+Itô's Lemma:
+\[
+\dd u = \left(u_t + \mu u_x + \tfrac12\sigma^2u_{xx}\right)\dd t + \sigma u_x\,\dd W_t.
+\]
+A martingale has zero drift, so the $\dd t$-coefficient vanishes, giving the PDE. The terminal
+condition follows since $X_T = x$ trivially yields $u(x,T)=g(x)$.
+\end{proof}
+
+\subsection{Discounting: from Feynman--Kac to the Black--Scholes PDE}
+
+Plain Feynman--Kac is not yet the pricing PDE: no-arbitrage requires the \emph{discounted} price
+process to be a martingale under $\Q$, not the price itself.
+
+\begin{theorem}[Discounted Feynman--Kac / Black--Scholes PDE]
+\label{thm:bspde}
+Let $C(S,t)$ be an option price with $\dd S_t = rS_t\,\dd t+\sigma S_t\,\dd W_t^\Q$ under the
+risk-neutral measure. If $e^{-rt}C(S_t,t)$ is a $\Q$-martingale, then
+\[
+\boxed{\ C_t + rSC_S + \tfrac12\sigma^2S^2C_{SS} - rC = 0\ }
+\]
+\end{theorem}
+
+\begin{proof}
+Apply the Itô product rule to $e^{-rt}C(S_t,t)$:
+\[
+\dd\big(e^{-rt}C\big) = -re^{-rt}C\,\dd t + e^{-rt}\,\dd C.
+\]
+Expand $\dd C$ via Itô's Lemma with the risk-neutral dynamics of $S_t$:
+\[
+\dd C = \left(C_t + rSC_S+\tfrac12\sigma^2S^2C_{SS}\right)\dd t + \sigma SC_S\,\dd W_t^\Q.
+\]
+Substituting,
+\[
+\dd\big(e^{-rt}C\big) = e^{-rt}\!\left[-rC+C_t+rSC_S+\tfrac12\sigma^2S^2C_{SS}\right]\dd t
++ e^{-rt}\sigma SC_S\,\dd W_t^\Q.
+\]
+The martingale property forces the drift to vanish, giving the boxed PDE.
+\end{proof}
+
+\begin{proposition}[Consistency check]
+Let $v(x,t) = \E^\Q[g(S_T)\mid S_t=x]$, which by Theorem~\ref{thm:fk} solves the plain
+(undiscounted) PDE $v_t+rxv_x+\tfrac12\sigma^2x^2v_{xx}=0$ with $v(x,T)=g(x)$. Then
+$u(x,t) := e^{-r(T-t)}v(x,t)$ solves the discounted PDE of Theorem~\ref{thm:bspde}.
+\end{proposition}
+
+\begin{proof}
+Compute $u_t = ru + e^{-r(T-t)}v_t$, $u_x = e^{-r(T-t)}v_x$, $u_{xx}=e^{-r(T-t)}v_{xx}$. Then
+\[
+u_t+rxu_x+\tfrac12\sigma^2x^2u_{xx}-ru
+= e^{-r(T-t)}\underbrace{\Big[v_t+rxv_x+\tfrac12\sigma^2x^2v_{xx}\Big]}_{=0\text{, plain FK}} = 0. \qedhere
+\]
+\end{proof}
+
+\begin{remark}
+This closes the loop connecting the three results of these notes: Girsanov supplies $\Q$ and the
+risk-neutral dynamics of $S_t$; Feynman--Kac connects conditional expectations to PDEs; discounting
+converts that into the actual Black--Scholes PDE, matching the replication-argument derivation via
+an entirely different (probabilistic) route.
+\end{remark}
+
+% =====================================================================
+\section*{Computational Validation}
+\addcontentsline{toc}{section}{Computational Validation}
+
+The accompanying \texttt{validate.py} script numerically confirms:
+\begin{enumerate}[label=(\roman*)]
+\item the GBM log-drift correction: empirical drift of $\ln S_t$ matches $\mu-\tfrac12\sigma^2$, not the naive $\mu$;
+\item the Girsanov martingale property $\E^\P[Z_T]=1$ via Monte Carlo;
+\item the measure-change consequence $\E^\Q[S_T] = S_0e^{rT}$, computed as $\E^\P[Z_T\cdot S_T]$ under $\P$.
+\end{enumerate}
+
+\end{document}
